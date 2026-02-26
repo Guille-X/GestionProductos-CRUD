@@ -1,0 +1,199 @@
+﻿@page "/productos/nuevo"
+@page "/productos/editar/{id:int}"
+@using GestionProductos.Frontend.Models
+@using GestionProductos.Frontend.Services
+@inject IProductoService ProductoService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>@(esEdicion ? "Editar Producto" : "Nuevo Producto")</PageTitle>
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-@(esEdicion ? "pencil-square" : "plus-circle")"></i>
+                        @titulo
+                    </h4>
+                </div>
+
+                <div class="card-body">
+                    <EditForm Model="@producto" OnValidSubmit="@HandleValidSubmit" OnInvalidSubmit="@HandleInvalidSubmit">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="alert alert-danger" />
+
+                        @if (errorMessage != null)
+                        {
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                <i class="bi bi-exclamation-triangle"></i> @errorMessage
+                                <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+                            </div>
+                        }
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="codigo" class="form-label fw-bold">Código</label>
+                                <InputText id="codigo" class="form-control" @bind-Value="producto.Codigo"
+                                           placeholder="Ej: PROD-001" />
+                                <ValidationMessage For="@(() => producto.Codigo)" />
+                                <small class="text-muted">Máximo 20 caracteres</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="nombre" class="form-label fw-bold">Nombre</label>
+                                <InputText id="nombre" class="form-control" @bind-Value="producto.Nombre"
+                                           placeholder="Ej: Laptop Gamer" />
+                                <ValidationMessage For="@(() => producto.Nombre)" />
+                                <small class="text-muted">Máximo 100 caracteres</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="precio" class="form-label fw-bold">Precio</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <InputNumber id="precio" class="form-control" @bind-Value="producto.Precio"
+                                                 min="0.01" step="0.01" />
+                                </div>
+                                <ValidationMessage For="@(() => producto.Precio)" />
+                                <small class="text-muted">Debe ser mayor a 0</small>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="stock" class="form-label fw-bold">Stock</label>
+                                <InputNumber id="stock" class="form-control" @bind-Value="producto.Stock"
+                                             min="0" step="1" />
+                                <ValidationMessage For="@(() => producto.Stock)" />
+                                <small class="text-muted">No puede ser negativo</small>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    <InputCheckbox id="activo" class="form-check-input" @bind-Value="producto.Activo" />
+                                    <label for="activo" class="form-check-label fw-bold">Producto Activo</label>
+                                </div>
+                                <small class="text-muted">Los productos inactivos no aparecen en listados por defecto</small>
+                            </div>
+
+                            @if (esEdicion)
+                            {
+                                <div class="col-12">
+                                    <hr />
+                                    <div class="row text-muted small">
+                                        <div class="col-md-6">
+                                            <i class="bi bi-calendar-plus"></i> Creado: @producto.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                                        </div>
+                                        @if (producto.UpdatedAt.HasValue)
+                                        {
+                                            <div class="col-md-6">
+                                                <i class="bi bi-calendar-check"></i> Actualizado: @producto.UpdatedAt.Value.ToString("dd/MM/yyyy HH:mm")
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <hr />
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="button" class="btn btn-secondary" @onclick="Cancelar">
+                                <i class="bi bi-x-circle"></i> Cancelar
+                            </button>
+                            <button type="submit" class="btn btn-primary" disabled="@procesando">
+                                @if (procesando)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                <i class="bi bi-@(esEdicion ? "check-circle" : "save")"></i>
+                                @(esEdicion ? "Actualizar" : "Guardar")
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private Producto producto = new();
+    private string titulo = "Nuevo Producto";
+    private bool esEdicion => Id.HasValue;
+    private string? errorMessage;
+    private bool procesando = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (esEdicion)
+        {
+            titulo = "Editar Producto";
+            await CargarProducto();
+        }
+    }
+
+    private async Task CargarProducto()
+    {
+        try
+        {
+            procesando = true;
+            var productoExistente = await ProductoService.GetProducto(Id!.Value);
+            if (productoExistente != null)
+            {
+                producto = productoExistente;
+            }
+            else
+            {
+                errorMessage = "No se encontró el producto solicitado";
+                await Task.Delay(2000);
+                Cancelar();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error cargando producto: {ex.Message}";
+        }
+        finally
+        {
+            procesando = false;
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            procesando = true;
+            errorMessage = null;
+
+            if (esEdicion)
+            {
+                await ProductoService.UpdateProducto(Id!.Value, producto);
+            }
+            else
+            {
+                await ProductoService.CreateProducto(producto);
+            }
+
+            Navigation.NavigateTo("/productos");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            procesando = false;
+        }
+    }
+
+    private void HandleInvalidSubmit()
+    {
+        errorMessage = "Por favor, corrija los errores en el formulario";
+    }
+
+    private void Cancelar()
+    {
+        Navigation.NavigateTo("/productos");
+    }
+}

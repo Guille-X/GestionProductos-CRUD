@@ -1,20 +1,51 @@
-using GestionProductos.API.Data;
+﻿using GestionProductos.API.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+
 builder.Services.AddControllers();
 
 // Configurar DbContext con SQL Server
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
+// IMPORTANTE: Configure CORS - VERSIÓN PERMISIVA SOLO PARA DESARROLLO
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("PermitirTodo",
+        policy =>
+        {
+            // Permite cualquier origen (útil para desarrollo)
+            policy.AllowAnyOrigin()      // ⬅️ Esto permite cualquier puerto
+                  .AllowAnyMethod()      // Permite GET, POST, PUT, DELETE
+                  .AllowAnyHeader();     // Permite cualquier header
+        });
 
-// Configuraci�n mejorada de Swagger
+    
+    options.AddPolicy("PermitirFrontend",
+        policy =>
+        {
+            policy.WithOrigins(
+                "http://localhost:5000",
+                "http://localhost:5001",
+                "https://localhost:5001",
+                "http://localhost:5020",
+                "https://localhost:7220",
+                "http://localhost:5159",  
+                "http://localhost:5182",  
+                "https://localhost:7001",
+                "https://localhost:7002"
+                )
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials();
+        });
+});
+
+
+builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo
@@ -32,18 +63,17 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Productos API V1");
-       
     });
 }
 
-app.UseHttpsRedirection();
+app.UseCors("PermitirTodo");
 
 app.UseAuthorization();
 

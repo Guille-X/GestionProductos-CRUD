@@ -1,0 +1,276 @@
+﻿@page "/productos"
+@using GestionProductos.Frontend.Models
+@using GestionProductos.Frontend.Services
+@inject IProductoService ProductoService
+@inject NavigationManager Navigation
+
+<PageTitle>Gestión de Productos</PageTitle>
+
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2 class="display-6">
+                <i class="bi bi-box-seam"></i> Gestión de Productos
+            </h2>
+            <p class="text-muted">Administre el catálogo de productos</p>
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-primary btn-lg" @onclick="NuevoProducto">
+                <i class="bi bi-plus-circle"></i> Nuevo Producto
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Buscar por nombre</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" placeholder="Ingrese nombre..." @bind="filtroNombre" />
+                        <button class="btn btn-outline-secondary" @onclick="CargarProductos">
+                            <i class="bi bi-search"></i> Buscar
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Filtrar por estado</label>
+                    <select class="form-select" @bind="filtroActivo">
+                        <option value="">Todos</option>
+                        <option value="true">Activos</option>
+                        <option value="false">Inactivos</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Filtrar por código</label>
+                    <input type="text" class="form-control" placeholder="Código..." @bind="filtroCodigo" />
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-secondary w-100" @onclick="LimpiarFiltros">
+                        <i class="bi bi-eraser"></i> Limpiar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    @if (cargando)
+    {
+        <div class="text-center my-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+            <p class="mt-2">Cargando productos...</p>
+        </div>
+    }
+    else if (!productos.Any())
+    {
+        <div class="alert alert-info text-center py-5">
+            <i class="bi bi-inbox display-1"></i>
+            <h4 class="mt-3">No hay productos para mostrar</h4>
+            <p>Comience creando un nuevo producto</p>
+            <button class="btn btn-primary" @onclick="NuevoProducto">
+                <i class="bi bi-plus-circle"></i> Crear Primer Producto
+            </button>
+        </div>
+    }
+    else
+    {
+        <!-- Tabla de productos -->
+        <div class="table-responsive">
+            <table class="table table-hover table-striped align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Código</th>
+                        <th>Nombre</th>
+                        <th>Precio</th>
+                        <th>Stock</th>
+                        <th>Estado</th>
+                        <th>F. Creación</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var producto in productos)
+                    {
+                        <tr class="@(producto.Activo ? "" : "table-secondary")">
+                            <td><span class="badge bg-info text-dark">@producto.Codigo</span></td>
+                            <td><strong>@producto.Nombre</strong></td>
+                            <td class="fw-bold text-success">@($"Q{producto.Precio:N2}")</td>
+                            <td>
+                                @if (producto.Stock > 0)
+                                {
+                                    <span class="badge bg-success">@producto.Stock unidades</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">Sin stock</span>
+                                }
+                            </td>
+                            <td>
+                                @if (producto.Activo)
+                                {
+                                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> Activo</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary"><i class="bi bi-x-circle"></i> Inactivo</span>
+                                }
+                            </td>
+                            <td><small>@producto.CreatedAt.ToString("dd/MM/yyyy")</small></td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <button class="btn btn-sm btn-info" @onclick="() => VerDetalle(producto.Id)" title="Ver detalle">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-warning" @onclick="() => EditarProducto(producto.Id)" title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    @if (producto.Activo)
+                                    {
+                                        <button class="btn btn-sm btn-danger" @onclick="() => EliminarProducto(producto)" title="Eliminar">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Resumen -->
+        <div class="card-footer bg-transparent mt-3">
+            <small class="text-muted">
+                Mostrando @productos.Count productos |
+                <span class="text-success">@productos.Count(p => p.Activo) activos</span> |
+                <span class="text-secondary">@productos.Count(p => !p.Activo) inactivos</span>
+            </small>
+        </div>
+    }
+</div>
+
+<!-- Modal de confirmación (usando Bootstrap) -->
+<div class="modal fade" id="confirmarEliminarModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle"></i> Confirmar Eliminación
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                @if (productoSeleccionado != null)
+                {
+                    <p>¿Está seguro que desea eliminar el producto <strong>@productoSeleccionado.Nombre</strong>?</p>
+                    <p class="text-muted">Esta acción marcará el producto como inactivo (soft delete).</p>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-danger" @onclick="ConfirmarEliminar" data-bs-dismiss="modal">
+                    <i class="bi bi-trash"></i> Eliminar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Producto> productos = new();
+    private string filtroNombre = "";
+    private string filtroCodigo = "";
+    private string? filtroActivo = "";
+    private bool cargando = true;
+    private Producto? productoSeleccionado;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarProductos();
+    }
+
+    private async Task CargarProductos()
+    {
+        cargando = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            bool? activo = null;
+            if (!string.IsNullOrEmpty(filtroActivo))
+                activo = bool.Parse(filtroActivo);
+
+            productos = await ProductoService.GetProductos(
+                string.IsNullOrWhiteSpace(filtroCodigo) ? null : filtroCodigo,
+                string.IsNullOrWhiteSpace(filtroNombre) ? null : filtroNombre,
+                activo
+            );
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error cargando productos: {ex.Message}");
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async void LimpiarFiltros()
+    {
+        filtroNombre = "";
+        filtroCodigo = "";
+        filtroActivo = "";
+        await CargarProductos();
+    }
+
+    private void NuevoProducto()
+    {
+        Navigation.NavigateTo("/productos/nuevo");
+    }
+
+    private void VerDetalle(int id)
+    {
+        Navigation.NavigateTo($"/productos/{id}");
+    }
+
+    private void EditarProducto(int id)
+    {
+        Navigation.NavigateTo($"/productos/editar/{id}");
+    }
+
+    private async void EliminarProducto(Producto producto)
+    {
+        productoSeleccionado = producto;
+        await ShowModal();
+    }
+
+    private async Task ShowModal()  
+    {
+        await Task.Delay(100);
+        
+    }
+
+    private async Task ConfirmarEliminar()
+    {
+        if (productoSeleccionado != null)
+        {
+            try
+            {
+                await ProductoService.DeleteProducto(productoSeleccionado.Id);
+                await CargarProductos();
+                productoSeleccionado = null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error eliminando producto: {ex.Message}");
+            }
+        }
+    }
+}

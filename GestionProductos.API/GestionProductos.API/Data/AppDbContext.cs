@@ -15,7 +15,6 @@ namespace GestionProductos.API.Data
         {
             base.OnModelCreating(modelBuilder);
 
-            // Configurar la unicidad del campo Codigo
             modelBuilder.Entity<Producto>()
                 .HasIndex(p => p.Codigo)
                 .IsUnique();
